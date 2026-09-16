@@ -1,6 +1,6 @@
 /* Punchly service worker.
    Bump CACHE whenever you deploy, so phones pick the new version up. */
-const CACHE = "punchly-v1";
+const CACHE = "punchly-v2";
 const SHELL = [
   "./",
   "./index.html",

@@ -173,18 +173,41 @@ personal time log; it is not what you'd use for anything regulated.
 
 ## Updating it
 
-Edit `index.html`, then bump **both** `BUILD` in `index.html` and `CACHE` in
-`sw.js` — keep them equal. `BUILD` shows in the header, so you can tell at a
-glance which version a device is running; tapping it asks the server what the
-current build is, and if the device is behind it clears the caches and reloads.
-`CACHE` (`punchly-v1` → `v2`, and so on) is what makes installed phones fetch
-the new version instead of serving the cached one. Commit and push; Pages
-redeploys on its own.
+Every iteration is a version. Edit whatever you're changing, then cut it:
+
+```sh
+./release.py "Colour the day strip by application" "Fix the week total on Mondays"
+```
+
+One argument per changelog line. The script bumps `v3` to `v4` and writes it
+into all four places that have to agree — `BUILD` in `index.html`, `CACHE` in
+`sw.js`, the in-app What's new list, and `CHANGELOG.md` — then commits
+everything and tags it `v4`. Add `--push` to send the commit and the tag, which
+is what deploys it; Pages redeploys on its own. `--dry-run` shows what would
+change and touches nothing.
+
+Nothing is edited by hand, because the one failure worth preventing is a deploy
+where `BUILD` and `CACHE` disagree: the phone would keep serving the cached old
+app while claiming to be the new version. The script refuses to run if it finds
+that drift already there, and re-reads both files after writing to confirm the
+bump landed before it commits.
+
+**What the version is for.** `BUILD` shows in the header. Tap it and the app
+opens **What's new**: the release history, which version this device is
+actually running, and — after a quick check against the published copy —
+whether it's behind. If it is, **Update now** clears the caches and reloads.
+That check is the point of bumping `CACHE` in step: a cache-first service
+worker will happily serve a months-old app with no outward sign.
+
+Releases are git tags, so `git show v3` gives you exactly what was deployed,
+and `git log v3..v4` what changed between two of them.
 
 ## Layout
 
 ```
 index.html                 the whole app: markup, styles, logic
+release.py                 cuts a version: bumps, changelogs, commits, tags
+CHANGELOG.md               every released version, newest first
 manifest.webmanifest       name, icons, display mode
 sw.js                      offline cache — bump CACHE on every deploy
 supabase-setup.sql         table and RPCs for the optional sync backend

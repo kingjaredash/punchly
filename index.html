@@ -317,6 +317,16 @@ main{padding-top:14px}
 .crumb h2{font-size:17px; font-family:"Space Grotesk",sans-serif; font-weight:700}
 .crumb .back{background:transparent; border:1px solid var(--rule-strong); border-radius:8px; padding:5px 10px; color:var(--muted); font-size:13px}
 
+/* ---------- what's new ---------- */
+.rel{padding:14px 16px}
+.rel + .rel{border-top:1px solid var(--rule)}
+.relhead{display:flex; align-items:center; gap:9px}
+.relhead h3{font-family:"Space Mono",monospace; font-size:15px; font-weight:700}
+.relwhen{margin-left:auto; font-size:11.5px; color:var(--muted); font-family:"Space Mono",monospace}
+.rel ul{margin:7px 0 0; padding-left:17px; font-size:13.5px; color:var(--ink-2); line-height:1.55}
+.rel li{margin:3px 0}
+.rel li::marker{color:var(--rule-strong)}
+
 /* ---------- report ---------- */
 .bignum{display:flex; align-items:flex-end; gap:12px; padding:15px 16px; flex-wrap:wrap}
 .bignum .h{font-family:"Space Mono",monospace; font-weight:700; font-size:clamp(32px,10vw,44px); line-height:1; font-variant-numeric:tabular-nums}
@@ -407,7 +417,8 @@ var S = {
   view:"today", entries:new Map(), current:null,
   q:"", appFilter:"", range:"week", from:"", to:"",
   prefs:{round:0, week:0},
-  sync:{url:"", key:"", manifest:""}, tombs:{}, syncState:"idle", syncMsg:"", syncedAt:0
+  sync:{url:"", key:"", manifest:""}, tombs:{}, syncState:"idle", syncMsg:"", syncedAt:0,
+  update:{state:"", latest:""}
 };
 
 var APPS = [
@@ -422,8 +433,24 @@ var ROUNDS = [
   {v:15, t:"15 min (quarters)"}
 ];
 
-var BUILD = "v1";           // bump together with CACHE in sw.js on every deploy
+var BUILD = "v2";           // bump together with CACHE in sw.js on every deploy
 var BUILT = "2026-09-15";
+
+// What changed, newest first. release.py writes this entry and CHANGELOG.md
+// from the same notes, so the phone and the repo never disagree.
+var RELEASES = [
+  {v:"v2", d:"2026-09-15", n:[
+    "Add a What's new screen: the version chip now opens the release history and checks whether this device is behind the published build.",
+    "Add release.py, which writes the version into index.html, sw.js, the in-app history and CHANGELOG.md from one set of notes, then commits and tags it."
+  ]},
+  {v:"v1", d:"2026-09-15", n:[
+    "First release. Punch in and out of TempTrak and TheWorxHub, one clock at a time.",
+    "Customer, ticket, task type and notes on every entry.",
+    "Reports by day, customer and task, with rounding to tenths or quarters.",
+    "Copy a summary, download a CSV, save a backup.",
+    "Optional sync across devices through a Supabase project."
+  ]}
+];
 
 var LS_ENTRIES = "punchly.entries";
 var LS_SYNC    = "punchly.sync";
@@ -697,6 +724,7 @@ function render(){
   else if(S.view === "sync")   v.innerHTML = viewSync();
   else if(S.view === "entry")  v.innerHTML = viewEntry();
   else if(S.view === "new")    v.innerHTML = viewNew();
+  else if(S.view === "about")  v.innerHTML = viewAbout();
 
   $("#fab").hidden = !(S.view === "today" || S.view === "log");
   $("#build").textContent = BUILD;
@@ -1172,29 +1200,61 @@ function paintPairing(){
 
 /* ============ version ============
    A cache-first service worker can leave a device a deploy behind with no
-   outward sign, so the version is both shown and checkable on demand. */
+   outward sign, so What’s new both lists the history and asks the server
+   whether this device is actually running the latest of it. */
 function checkForUpdate(){
-  var chip = $("#build");
-  if(chip) chip.textContent = BUILD + " · checking";
+  S.update = {state:"checking", latest:""};
+  if(S.view === "about") render();
   fetch("index.html?v=" + Date.now(), {cache:"no-store"})
     .then(function(r){ return r.text(); })
     .then(function(t){
       var m = t.match(/var BUILD = "(v\d+)"/);
-      var latest = m ? m[1] : null;
-      if(chip) chip.textContent = BUILD;
-      if(!latest) return toast("Punchly " + BUILD + " · built " + BUILT);
-      if(latest === BUILD) return toast("Punchly " + BUILD + " · built " + BUILT + " · up to date");
-      if(chip) chip.className = "build stale";
-      toast(latest + " is available — updating…");
-      var done = function(){ location.reload(); };
-      if(window.caches && caches.keys)
-        caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).then(done, done);
-      else done();
+      var latest = m ? m[1] : "";
+      S.update = {state: !latest ? "unknown" : latest === BUILD ? "current" : "ahead", latest:latest};
+      if(S.view === "about") render();
+      else if(S.update.state === "ahead") toast(latest + " is available \u2014 tap the version to update.");
+      var chip = $("#build");
+      if(chip && S.update.state === "ahead") chip.className = "build stale";
     })
     .catch(function(){
-      if(chip) chip.textContent = BUILD;
-      toast("Punchly " + BUILD + " · built " + BUILT + " · offline, can’t check");
+      S.update = {state:"offline", latest:""};
+      if(S.view === "about") render();
     });
+}
+function applyUpdate(){
+  toast("Updating\u2026");
+  var done = function(){ location.reload(); };
+  if(window.caches && caches.keys)
+    caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).then(done, done);
+  else done();
+}
+function updateLine(){
+  var u = S.update;
+  if(u.state === "checking") return '<span class="note">Checking\u2026</span>';
+  if(u.state === "current")  return '<span class="note"><b>Up to date.</b></span>';
+  if(u.state === "offline")  return '<span class="note">Offline \u2014 can\u2019t check right now.</span>';
+  if(u.state === "unknown")  return '<span class="note">Couldn\u2019t read the published version.</span>';
+  if(u.state === "ahead")    return '<span class="note"><b>' + esc(u.latest) + ' is published</b> \u2014 this device is behind.</span>';
+  return "";
+}
+function viewAbout(){
+  var u = S.update;
+  return '<div class="crumb"><button class="back" data-back="today">\u2039 Back</button><h2>What\u2019s new</h2></div>' +
+    '<div class="card sect"><div class="bignum" style="padding-bottom:12px">' +
+      '<span class="h" style="font-size:34px">' + BUILD + '</span>' +
+      '<span class="u">running here \u00b7 built ' + BUILT + '</span></div>' +
+      '<div style="padding:0 16px 14px" class="btnrow">' +
+        (u.state === "ahead" ? '<button class="btn" id="updatenow">Update now</button>' : "") +
+        '<button class="btn ghost" id="recheck">' + (u.state === "checking" ? "Checking\u2026" : "Check again") + '</button>' +
+        '<span style="align-self:center">' + updateLine() + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="card">' + RELEASES.map(function(r){
+      return '<div class="rel"><div class="relhead"><h3>' + esc(r.v) + '</h3>' +
+        (r.v === BUILD ? '<span class="chip plain">running here</span>' : "") +
+        '<span class="relwhen">' + esc(r.d) + '</span></div>' +
+        '<ul>' + r.n.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + '</ul></div>';
+    }).join("") + '</div>';
 }
 
 /* ============ sync ============
@@ -1333,7 +1393,9 @@ document.addEventListener("click", function(ev){
   if(t.dataset.back) return go(t.dataset.back);
   if(t.dataset.open) return go("entry", t.dataset.open);
   if(t.id === "fab") return go("new");
-  if(t.id === "build") return checkForUpdate();
+  if(t.id === "build"){ go("about"); return checkForUpdate(); }
+  if(t.id === "recheck") return checkForUpdate();
+  if(t.id === "updatenow") return applyUpdate();
 
   if(t.dataset.setapp !== undefined){
     Array.prototype.forEach.call(t.parentNode.children, function(b){
