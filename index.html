@@ -425,6 +425,7 @@ var APPS = [
   {k:"tt", t:"TempTrak",    s:"TempTrak"},
   {k:"wx", t:"TheWorxHub",  s:"WorxHub"}
 ];
+var SITES = ["CRMC","CCMC","CBHC","CSTCC","FHSH","BECC"];
 var TASKS = ["Support call","Install","Configuration","Troubleshooting","Training",
              "Site visit","Meeting","Documentation","Travel","Admin"];
 var ROUNDS = [
@@ -433,12 +434,16 @@ var ROUNDS = [
   {v:15, t:"15 min (quarters)"}
 ];
 
-var BUILD = "v2";           // bump together with CACHE in sw.js on every deploy
+var BUILD = "v3";           // bump together with CACHE in sw.js on every deploy
 var BUILT = "2026-09-15";
 
 // What changed, newest first. release.py writes this entry and CHANGELOG.md
 // from the same notes, so the phone and the repo never disagree.
 var RELEASES = [
+  {v:"v3", d:"2026-09-15", n:[
+    "Customer or site is now a dropdown of the six sites \u2014 CRMC, CCMC, CBHC, CSTCC, FHSH, BECC \u2014 so it is one tap and always spelled the same way.",
+    "A site that arrives from a backup or another device but is not on the list still shows for that entry, rather than being blanked when the entry is opened."
+  ]},
   {v:"v2", d:"2026-09-15", n:[
     "Add a What's new screen: the version chip now opens the release history and checks whether this device is behind the published build.",
     "Add release.py, which writes the version into index.html, sw.js, the in-app history and CHANGELOG.md from one set of notes, then commits and tags it."
@@ -730,7 +735,6 @@ function render(){
   $("#build").textContent = BUILD;
   paintTally();
   if(S.view === "sync" && S.sync.manifest) paintPairing();
-  if(S.view === "new"){ var f = $("#f-customer"); if(f) f.focus(); }
 }
 
 function paintTally(){
@@ -903,9 +907,20 @@ function viewLog(){
 
 /* ============ entry form ============ */
 function datalists(){
-  return '<datalist id="dl-customer">' + suggest("customer").map(function(v){ return '<option value="' + esc(v) + '">'; }).join("") + '</datalist>' +
-    '<datalist id="dl-task">' + TASKS.concat(suggest("task").filter(function(v){ return TASKS.indexOf(v) < 0; }))
+  return     '<datalist id="dl-task">' + TASKS.concat(suggest("task").filter(function(v){ return TASKS.indexOf(v) < 0; }))
       .map(function(v){ return '<option value="' + esc(v) + '">'; }).join("") + '</datalist>';
+}
+/* The six sites are the whole vocabulary, but an entry that arrived from a
+   backup or another device could carry something else — list that too, rather
+   than resetting the field to blank the moment the entry is opened. */
+function siteOptions(sel){
+  var list = SITES.slice();
+  suggest("customer").concat(sel ? [sel] : []).forEach(function(v){
+    if(v && list.indexOf(v) < 0) list.push(v);
+  });
+  return '<option value="">\u2014</option>' + list.map(function(v){
+    return '<option value="' + esc(v) + '"' + (v === sel ? " selected" : "") + '>' + esc(v) + '</option>';
+  }).join("");
 }
 function segHtml(sel){
   return '<div class="seg" id="f-app">' + APPS.map(function(a){
@@ -922,7 +937,7 @@ function formFields(e, running){
         (running ? '<div class="hint">Leave empty to keep the clock running.</div>' : "") + '</div>' +
     '</div>' +
     '<div class="grid2">' +
-      '<div class="field"><label>Customer or site</label><input id="f-customer" list="dl-customer" value="' + esc(e.customer) + '" placeholder="Mercy Regional" autocomplete="off"></div>' +
+      '<div class="field"><label>Customer or site</label><select id="f-customer">' + siteOptions(e.customer) + '</select></div>' +
       '<div class="field"><label>Ticket or work order</label><input id="f-ticket" value="' + esc(e.ticket) + '" placeholder="48127" autocomplete="off"></div>' +
     '</div>' +
     '<div class="field"><label>Task type</label><input id="f-task" list="dl-task" value="' + esc(e.task) + '" placeholder="Troubleshooting" autocomplete="off"></div>' +

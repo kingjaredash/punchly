@@ -60,6 +60,14 @@ An entry whose end time is earlier than its start is read as work that ran past
 midnight, and counts as the hours it really took. It's reported on the day it
 started.
 
+**Customer or site** is a fixed dropdown — CRMC, CCMC, CBHC, CSTCC, FHSH,
+BECC — so it's one tap and always spelled the same way, which is what makes the
+Report's per-site totals add up. To change the list, edit `SITES` near the top
+of the script in `index.html`. A site that arrives from a backup or another
+device but isn't on the list still appears in the dropdown for that entry, so
+opening an old entry never quietly blanks its site. **Task type** stays free
+text with suggestions, since that vocabulary is looser.
+
 The **Today** tab draws the day as a strip on a clock scale, so an afternoon
 you forgot to log looks like a gap rather than arithmetic you have to do.
 
