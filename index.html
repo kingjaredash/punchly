@@ -79,6 +79,10 @@ body{
 }
 h1,h2,h3{margin:0; text-wrap:balance}
 button,input,textarea,select{font:inherit; color:inherit}
+/* iOS Safari zooms the page in when a focused control is under 16px, and it
+   does not zoom back out on blur — one tap on the ticket field and you are
+   panning sideways for the rest of the session. 16px is the threshold. */
+input,textarea,select{font-size:16px}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--ink); outline-offset:2px; border-radius:4px}
 
@@ -224,7 +228,7 @@ main{padding-top:14px}
 }
 .since{font-size:12.5px; color:var(--muted); margin-bottom:10px}
 .since b{color:var(--ink-2); font-weight:500}
-.livemeta{font-size:13px; color:var(--ink-2); margin:-4px 0 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.livemeta{font-size:13px; color:var(--ink-2); margin:-4px 0 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; overflow-wrap:anywhere}
 .livemeta .sep{color:var(--rule-strong)}
 .overnight{color:var(--warn); font-size:12.5px; margin:-6px 0 10px}
 
@@ -273,7 +277,7 @@ main{padding-top:14px}
   color:var(--muted); line-height:1.45; letter-spacing:.02em;
 }
 .row .mid{flex:1; min-width:0}
-.row .title{font-size:14px; line-height:1.35; word-break:break-word}
+.row .title{font-size:14px; line-height:1.35; overflow-wrap:anywhere}
 .row .title.none{color:var(--muted); font-style:italic}
 .row .sub{font-size:11.5px; color:var(--muted); margin-top:2px; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
 .row .sub .sep{color:var(--rule-strong)}
@@ -434,12 +438,16 @@ var ROUNDS = [
   {v:15, t:"15 min (quarters)"}
 ];
 
-var BUILD = "v3";           // bump together with CACHE in sw.js on every deploy
+var BUILD = "v4";           // bump together with CACHE in sw.js on every deploy
 var BUILT = "2026-09-15";
 
 // What changed, newest first. release.py writes this entry and CHANGELOG.md
 // from the same notes, so the phone and the repo never disagree.
 var RELEASES = [
+  {v:"v4", d:"2026-09-15", n:[
+    "Form controls are 16px, which stops iOS Safari zooming the page in when you tap a field \u2014 it never zoomed back out, which is what left the page needing to be dragged side to side.",
+    "Long notes and tickets now break rather than pushing a row past the edge of the screen."
+  ]},
   {v:"v3", d:"2026-09-15", n:[
     "Customer or site is now a dropdown of the six sites \u2014 CRMC, CCMC, CBHC, CSTCC, FHSH, BECC \u2014 so it is one tap and always spelled the same way.",
     "A site that arrives from a backup or another device but is not on the list still shows for that entry, rather than being blanked when the entry is opened."

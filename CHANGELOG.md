@@ -3,6 +3,11 @@
 Every deployed version of Punchly, newest first. Written by `release.py`;
 the same notes appear in the app under What's new.
 
+## v4 — 2026-09-15
+
+- Form controls are 16px, which stops iOS Safari zooming the page in when you tap a field — it never zoomed back out, which is what left the page needing to be dragged side to side.
+- Long notes and tickets now break rather than pushing a row past the edge of the screen.
+
 ## v3 — 2026-09-15
 
 - Customer or site is now a dropdown of the six sites — CRMC, CCMC, CBHC, CSTCC, FHSH, BECC — so it is one tap and always spelled the same way.
