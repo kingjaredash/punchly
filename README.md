@@ -13,26 +13,18 @@ TheWorxHub**, in every chip, every total and every block on the day strip. The
 rest of the interface stays black on manila, so the only colour on screen is
 information.
 
-## Deploying to GitHub Pages
+## Where it lives
 
-The `gh` CLI isn't installed on this machine, so the repo has to be created
-through the web UI. Two steps are yours, one is a paste.
+The repo is <https://github.com/kingjaredash/punchly> and `origin` is already
+set, so `git push` goes to the right place.
 
-1. Create an empty repo at <https://github.com/new>. Name it `punchly`. No
-   README, no .gitignore, no licence: this folder already has a commit.
+GitHub Pages serves it at `https://kingjaredash.github.io/punchly/`. If that
+address 404s, Pages has not been switched on yet: **Settings → Pages → Source:
+Deploy from a branch**, branch `main`, folder `/ (root)`, Save. The first build
+takes a minute or two.
 
-2. Push. SSH is already authorised for this account, so no token is needed:
-
-   ```sh
-   cd ~/punchly
-   git remote add origin git@github.com:kingjaredash/punchly.git
-   git push -u origin main
-   ```
-
-3. In the repo: **Settings → Pages → Source: Deploy from a branch**, branch
-   `main`, folder `/ (root)`. Save. The first build takes a minute or two.
-
-Your app then lives at `https://kingjaredash.github.io/punchly/`.
+**Deploying is `./release.py --push`** — see *Updating it* below. Pages
+redeploys itself on every push to `main`.
 
 ## Putting an icon on your phone
 
