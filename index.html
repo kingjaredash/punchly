@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Punch in and out of TempTrak and TheWorxHub work, then get the hours back as a summary, a CSV, or a week at a glance.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#EFEAE0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131110" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-title" content="Punchly">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<title>Punchly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&display=swap">
+<style>
+:root{color-scheme:light dark}
+html{-webkit-text-size-adjust:100%}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* clear the notch and the home indicator when installed full-screen */
+header.top{padding-top:env(safe-area-inset-top, 0px)}
+main{padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+.fab{bottom:calc(20px + env(safe-area-inset-bottom, 0px))}
+</style>
+<style>
+/* Punch card: manila stock, ink print, and two ribbon colours that mean
+   something — ember is TempTrak, teal is TheWorxHub, everywhere, always.
+   The chrome stays monochrome so colour only ever carries information. */
+:root{
+  --paper:#EFEAE0; --card:#FFFCF7; --card-2:#F7F3EA; --sunk:#E4DED1;
+  --ink:#191612; --ink-2:#443E35; --muted:#7C7466;
+  --rule:#DCD5C7; --rule-strong:#BDB4A2;
+  --accent:#191612; --accent-ink:#FFFCF7;
+  --tt:#B3541E; --tt-soft:#F7E3D3; --tt-line:#E0A277;
+  --wx:#0D6E78; --wx-soft:#D6EBEE; --wx-line:#79BCC4;
+  --ok:#2E6B45; --ok-soft:#DDEDE2; --warn:#8A6410; --warn-soft:#F5E9D0;
+  --alert:#B23A2B; --alert-soft:#F7E0DB;
+  --shadow:0 1px 2px rgba(25,22,18,.06), 0 12px 28px -18px rgba(25,22,18,.35);
+  --radius:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131110; --card:#1C1917; --card-2:#24201D; --sunk:#0E0C0B;
+    --ink:#F2EDE3; --ink-2:#C7BFB2; --muted:#8E8577;
+    --rule:#2E2A25; --rule-strong:#433D35;
+    --accent:#F2EDE3; --accent-ink:#131110;
+    --tt:#E89150; --tt-soft:#3A2415; --tt-line:#8A5426;
+    --wx:#4FBFCB; --wx-soft:#0F2E33; --wx-line:#2A6D75;
+    --ok:#5FC08A; --ok-soft:#12291C; --warn:#D9A64C; --warn-soft:#2C2413;
+    --alert:#EE7A68; --alert-soft:#331916;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 14px 32px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131110; --card:#1C1917; --card-2:#24201D; --sunk:#0E0C0B;
+  --ink:#F2EDE3; --ink-2:#C7BFB2; --muted:#8E8577;
+  --rule:#2E2A25; --rule-strong:#433D35;
+  --accent:#F2EDE3; --accent-ink:#131110;
+  --tt:#E89150; --tt-soft:#3A2415; --tt-line:#8A5426;
+  --wx:#4FBFCB; --wx-soft:#0F2E33; --wx-line:#2A6D75;
+  --ok:#5FC08A; --ok-soft:#12291C; --warn:#D9A64C; --warn-soft:#2C2413;
+  --alert:#EE7A68; --alert-soft:#331916;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 14px 32px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+/* A form control carries an intrinsic width of about twenty characters, and a
+   flex row will not shrink it below that. Unset it, or a narrow phone gets a
+   sideways scrollbar instead of a page that fits. */
+input,textarea,select,button{min-width:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; margin:0;
+  -webkit-text-size-adjust:100%;
+  overflow-x:clip;   /* clip, not hidden, so the masthead still sticks */
+}
+h1,h2,h3{margin:0; text-wrap:balance}
+button,input,textarea,select{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ink); outline-offset:2px; border-radius:4px}
+
+.display{font-family:"Space Grotesk","Inter Tight",sans-serif; font-weight:700; letter-spacing:-.01em}
+.eyebrow{
+  font-family:"Space Grotesk",sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+}
+.mono{font-family:"Space Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+.stamp{font-family:"Space Mono",monospace; font-variant-numeric:tabular-nums; letter-spacing:.06em}
+
+.wrap{
+  max-width:780px; margin:0 auto;
+  padding-left:max(14px, env(safe-area-inset-left, 0px));
+  padding-right:max(14px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- masthead ---------- */
+header.top{
+  position:sticky; top:0; z-index:30;
+  background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--rule);
+}
+.mast{display:flex; align-items:center; gap:11px; padding:12px 0 10px}
+/* the mark is a punch card in miniature: clipped corner, two punches */
+.mark{
+  width:34px; height:34px; flex:none; border-radius:5px;
+  background:var(--ink); color:var(--paper);
+  clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  display:grid; grid-template-columns:repeat(3,1fr); gap:3px;
+  align-content:center; justify-items:center; padding:7px 6px;
+}
+.mark i{width:100%; height:5px; border-radius:2px; background:color-mix(in srgb, var(--paper) 24%, transparent)}
+.mark i.a{background:var(--tt)} .mark i.b{background:var(--wx)}
+.mast h1{font-size:17px; letter-spacing:.005em}
+.build{
+  font-size:10px; color:var(--muted); background:transparent;
+  border:1px solid var(--rule-strong); border-radius:4px;
+  padding:2px 6px; letter-spacing:.04em; white-space:nowrap;
+  font-family:"Space Mono",monospace;
+}
+.build:hover{color:var(--ink); border-color:var(--ink)}
+.build.stale{color:var(--warn); border-color:var(--warn); font-weight:700}
+.tally{margin-left:auto; text-align:right; font-size:11px; color:var(--muted); line-height:1.4}
+.tally b{color:var(--ink); font-weight:400}
+.tally .live{color:var(--ink)}
+.tally .dot{display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; vertical-align:1px}
+.dot.tt{background:var(--tt)} .dot.wx{background:var(--wx)}
+
+nav.tabs{display:flex; gap:2px; padding-bottom:10px}
+nav.tabs button{
+  flex:1; background:transparent; border:1px solid transparent; border-radius:8px;
+  padding:7px 4px 8px; color:var(--muted);
+  font-family:"Space Grotesk",sans-serif; font-weight:500; font-size:13px;
+}
+nav.tabs button[aria-current="true"]{background:var(--card); border-color:var(--rule); color:var(--ink); box-shadow:var(--shadow)}
+
+main{padding-top:14px}
+
+/* ---------- generic pieces ---------- */
+.card{
+  background:var(--card); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.sect{margin:0 0 14px}
+.sect-head{display:flex; align-items:baseline; gap:8px; margin:0 0 8px}
+.sect-head h2{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+  font-family:"Space Grotesk",sans-serif; font-weight:700}
+.sect-head .right{margin-left:auto; font-size:12px; color:var(--muted)}
+.sep{color:var(--rule-strong)}
+.n-tt{color:var(--tt)} .n-wx{color:var(--wx)}
+
+.btn{
+  background:var(--accent); color:var(--accent-ink); border:1px solid var(--accent);
+  border-radius:8px; padding:9px 14px; font-weight:600; font-size:14px;
+  font-family:"Space Grotesk",sans-serif;
+}
+.btn.ghost{background:transparent; color:var(--ink); border-color:var(--rule-strong); font-weight:500}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn.danger{background:transparent; color:var(--alert); border-color:var(--alert)}
+.btn.sm{padding:6px 10px; font-size:13px}
+.btnrow{display:flex; flex-wrap:wrap; gap:8px}
+
+.chip{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+  border-radius:999px; padding:2px 9px 3px; border:1px solid transparent; white-space:nowrap;
+  font-family:"Space Grotesk",sans-serif;
+}
+.chip.tt{background:var(--tt-soft); color:var(--tt); border-color:var(--tt-line)}
+.chip.wx{background:var(--wx-soft); color:var(--wx); border-color:var(--wx-line)}
+.chip.plain{background:var(--sunk); color:var(--muted); border-color:var(--rule)}
+
+.filters{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px}
+.filters button{
+  background:var(--card); border:1px solid var(--rule); color:var(--muted);
+  border-radius:999px; padding:5px 11px; font-size:12.5px;
+}
+.filters button[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.filters button.tt[aria-pressed="true"]{background:var(--tt); border-color:var(--tt); color:var(--card)}
+.filters button.wx[aria-pressed="true"]{background:var(--wx); border-color:var(--wx); color:var(--card)}
+
+.search{position:relative; display:flex; gap:8px; margin:0 0 10px}
+.search input{
+  flex:1; background:var(--card); border:1px solid var(--rule); border-radius:8px;
+  padding:9px 11px; color:var(--ink);
+}
+.clear{background:transparent; border:1px solid var(--rule-strong); border-radius:8px; padding:0 11px; color:var(--muted); font-size:13px}
+
+.empty{
+  border:1px dashed var(--rule-strong); border-radius:var(--radius);
+  padding:26px 18px; text-align:center; color:var(--muted); font-size:13.5px;
+}
+.empty b{display:block; color:var(--ink); font-size:15px; margin-bottom:5px; font-family:"Space Grotesk",sans-serif}
+
+/* ---------- the punch card ---------- */
+.punch{
+  position:relative; overflow:hidden;
+  background:var(--card); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); margin:0 0 14px;
+  clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+}
+/* the perforated stub down the left edge of a real card */
+.punch::before{
+  content:""; position:absolute; left:11px; top:10px; bottom:10px; width:1px;
+  background:repeating-linear-gradient(to bottom, var(--rule-strong) 0 3px, transparent 3px 7px);
+}
+.punch-in{padding:16px 16px 16px 28px}
+.punch.on.tt{border-color:var(--tt-line); background:linear-gradient(180deg, var(--tt-soft), var(--card) 62%)}
+.punch.on.wx{border-color:var(--wx-line); background:linear-gradient(180deg, var(--wx-soft), var(--card) 62%)}
+
+.live-top{display:flex; align-items:center; gap:9px; margin-bottom:2px}
+.live-app{font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:15px}
+.punch.on.tt .live-app{color:var(--tt)} .punch.on.wx .live-app{color:var(--wx)}
+.pulse{width:8px; height:8px; border-radius:50%; flex:none; animation:pulse 1.8s ease-in-out infinite}
+.punch.on.tt .pulse{background:var(--tt)} .punch.on.wx .pulse{background:var(--wx)}
+@keyframes pulse{0%,100%{opacity:1} 50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+.elapsed{
+  font-family:"Space Mono",monospace; font-weight:700; letter-spacing:.02em;
+  font-size:clamp(38px, 12vw, 54px); line-height:1.04; margin:2px 0 2px;
+  font-variant-numeric:tabular-nums;
+}
+.since{font-size:12.5px; color:var(--muted); margin-bottom:10px}
+.since b{color:var(--ink-2); font-weight:500}
+.livemeta{font-size:13px; color:var(--ink-2); margin:-4px 0 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.livemeta .sep{color:var(--rule-strong)}
+.overnight{color:var(--warn); font-size:12.5px; margin:-6px 0 10px}
+
+.idle-lead{font-size:13.5px; color:var(--muted); margin:0 0 12px}
+.punchbtns{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+@media (max-width:420px){.punchbtns{grid-template-columns:1fr}}
+.pbtn{
+  text-align:left; border-radius:9px; padding:13px 14px; border:1px solid;
+  display:flex; flex-direction:column; gap:2px; background:var(--card-2);
+}
+.pbtn .k{font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:15px}
+.pbtn .s{font-size:11.5px; color:var(--muted)}
+.pbtn.tt{border-color:var(--tt-line); background:var(--tt-soft)} .pbtn.tt .k{color:var(--tt)}
+.pbtn.wx{border-color:var(--wx-line); background:var(--wx-soft)} .pbtn.wx .k{color:var(--wx)}
+.pbtn:hover{filter:brightness(.98)}
+
+/* ---------- day strip ---------- */
+.strip-wrap{margin:0 0 14px}
+.strip{
+  position:relative; height:26px; background:var(--sunk);
+  border:1px solid var(--rule); border-radius:6px; overflow:hidden;
+}
+.strip .hr{position:absolute; top:0; bottom:0; width:1px; background:var(--rule)}
+.strip .blk{position:absolute; top:3px; bottom:3px; border-radius:3px; min-width:2px}
+.strip .blk.tt{background:var(--tt)} .strip .blk.wx{background:var(--wx)}
+.strip .blk.live{opacity:.62}
+.strip-ax{display:flex; justify-content:space-between; font-size:10px; color:var(--muted); margin-top:3px; font-family:"Space Mono",monospace}
+
+/* ---------- entry rows ---------- */
+.rows{display:flex; flex-direction:column; gap:7px}
+.daygroup{margin:0 0 14px}
+.dayhead{display:flex; align-items:baseline; gap:8px; margin:0 0 7px; padding-top:2px}
+.dayhead h3{font-size:13.5px; font-family:"Space Grotesk",sans-serif; font-weight:700}
+.dayhead .dtot{margin-left:auto; font-size:12.5px; color:var(--muted)}
+.dayhead .dtot b{color:var(--ink); font-weight:400}
+
+.row{
+  width:100%; text-align:left; background:var(--card); border:1px solid var(--rule);
+  border-left:3px solid var(--rule-strong); border-radius:8px;
+  padding:9px 11px; display:flex; gap:11px; align-items:flex-start;
+}
+.row:hover{border-color:var(--rule-strong)}
+.row.tt{border-left-color:var(--tt)} .row.wx{border-left-color:var(--wx)}
+.row .when{
+  flex:none; width:104px; font-family:"Space Mono",monospace; font-size:11.5px;
+  color:var(--muted); line-height:1.45; letter-spacing:.02em;
+}
+.row .mid{flex:1; min-width:0}
+.row .title{font-size:14px; line-height:1.35; word-break:break-word}
+.row .title.none{color:var(--muted); font-style:italic}
+.row .sub{font-size:11.5px; color:var(--muted); margin-top:2px; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.row .sub .sep{color:var(--rule-strong)}
+.row .dur{
+  flex:none; text-align:right; font-family:"Space Mono",monospace; font-size:14px;
+  font-variant-numeric:tabular-nums;
+}
+.row .dur small{display:block; font-size:10px; color:var(--muted); letter-spacing:.04em; font-weight:400}
+.row.running{border-style:dashed}
+
+/* ---------- forms ---------- */
+.form{padding:14px}
+.field{margin:0 0 11px}
+.field label{display:block; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:5px;
+  font-family:"Space Grotesk",sans-serif; font-weight:700}
+.field input,.field textarea,.field select{
+  width:100%; background:var(--card-2); border:1px solid var(--rule); border-radius:8px;
+  padding:9px 11px; color:var(--ink);
+}
+.field textarea{min-height:76px; resize:vertical}
+.field .hint{font-size:11.5px; color:var(--muted); margin-top:4px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:11px}
+@media (max-width:440px){.grid2{grid-template-columns:1fr}}
+
+.seg{display:flex; gap:7px}
+.seg button{
+  flex:1; background:var(--card-2); border:1px solid var(--rule); border-radius:8px;
+  padding:9px 8px; color:var(--muted); font-family:"Space Grotesk",sans-serif; font-weight:600; font-size:14px;
+}
+.seg button[aria-pressed="true"].tt{background:var(--tt-soft); border-color:var(--tt); color:var(--tt)}
+.seg button[aria-pressed="true"].wx{background:var(--wx-soft); border-color:var(--wx); color:var(--wx)}
+
+.durreadout{
+  display:flex; align-items:baseline; gap:8px; padding:9px 11px; border-radius:8px;
+  background:var(--sunk); border:1px solid var(--rule); font-size:13px; color:var(--muted);
+}
+.durreadout b{font-family:"Space Mono",monospace; font-size:17px; color:var(--ink); font-weight:700}
+
+/* ---------- detail ---------- */
+.crumb{display:flex; align-items:center; gap:9px; margin:0 0 12px}
+.crumb h2{font-size:17px; font-family:"Space Grotesk",sans-serif; font-weight:700}
+.crumb .back{background:transparent; border:1px solid var(--rule-strong); border-radius:8px; padding:5px 10px; color:var(--muted); font-size:13px}
+
+/* ---------- report ---------- */
+.bignum{display:flex; align-items:flex-end; gap:12px; padding:15px 16px; flex-wrap:wrap}
+.bignum .h{font-family:"Space Mono",monospace; font-weight:700; font-size:clamp(32px,10vw,44px); line-height:1; font-variant-numeric:tabular-nums}
+.bignum .u{font-size:13px; color:var(--muted); padding-bottom:4px}
+.bignum .split{margin-left:auto; display:flex; gap:16px; padding-bottom:3px}
+.bignum .split div{text-align:right}
+.bignum .split .n{font-family:"Space Mono",monospace; font-size:17px; font-variant-numeric:tabular-nums}
+.bignum .split .l{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; font-family:"Space Grotesk",sans-serif; font-weight:700}
+.bignum .split .tt .n,.bignum .split .tt .l{color:var(--tt)}
+.bignum .split .wx .n,.bignum .split .wx .l{color:var(--wx)}
+
+table.brk{width:100%; border-collapse:collapse; font-size:13.5px}
+table.brk th{
+  text-align:left; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  font-family:"Space Grotesk",sans-serif; font-weight:700; padding:0 10px 6px; border-bottom:1px solid var(--rule);
+}
+table.brk th.r,table.brk td.r{text-align:right}
+table.brk td{padding:8px 10px; border-bottom:1px solid var(--rule); vertical-align:middle}
+table.brk tr:last-child td{border-bottom:0}
+table.brk td.r{font-family:"Space Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+.bar{height:6px; border-radius:3px; background:var(--sunk); overflow:hidden; margin-top:5px; display:flex}
+.bar i{display:block; height:100%}
+.bar i.tt{background:var(--tt)} .bar i.wx{background:var(--wx)}
+.tblwrap{overflow-x:auto}
+
+.prefs{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:12px 14px}
+.prefs .field{margin:0; min-width:150px; flex:1}
+
+/* ---------- sync ---------- */
+.syncdot{width:9px; height:9px; border-radius:50%; background:var(--rule-strong); flex:none}
+.syncdot.on{background:var(--ok)} .syncdot.err{background:var(--alert)} .syncdot.busy{background:var(--warn)}
+.status{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--ink-2); padding:12px 14px}
+.qrbox{background:#fff; border:1px solid var(--rule); border-radius:8px; padding:9px; width:190px; margin:0 auto}
+.code{
+  font-family:"Space Mono",monospace; font-size:11px; background:var(--sunk); border:1px solid var(--rule);
+  border-radius:8px; padding:10px 11px; white-space:pre-wrap; word-break:break-all; max-height:180px; overflow:auto; color:var(--ink-2);
+}
+.note{font-size:12.5px; color:var(--muted); line-height:1.5}
+.note b{color:var(--ink-2); font-weight:600}
+
+/* ---------- fab + toast ---------- */
+.fab{
+  position:fixed; right:max(16px, env(safe-area-inset-right, 0px)); z-index:25;
+  background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px;
+  padding:13px 19px; font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:14px;
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.45);
+}
+.toast{
+  position:fixed; left:50%; transform:translateX(-50%) translateY(20px);
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  background:var(--ink); color:var(--paper); padding:9px 15px; border-radius:999px;
+  font-size:13px; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60;
+  max-width:88vw; text-align:center;
+}
+.toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="mast">
+      <div class="mark" aria-hidden="true"><i></i><i class="a"></i><i></i><i></i><i></i><i class="b"></i></div>
+      <h1 class="display">Punchly</h1>
+      <button class="build" id="build" title="Version — tap to check for an update"></button>
+      <div class="tally" id="tally"></div>
+    </div>
+    <nav class="tabs">
+      <button data-tab="today" aria-current="true">Today</button>
+      <button data-tab="log">Log</button>
+      <button data-tab="report">Report</button>
+      <button data-tab="sync">Sync</button>
+    </nav>
+  </div>
+</header>
+
+<main><div class="wrap" id="view"></div></main>
+<button class="fab" id="fab" hidden>+ Log time</button>
+<div class="toast" id="toast"></div>
+
+<script src="vendor/qrcode.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============ state ============ */
+var S = {
+  view:"today", entries:new Map(), current:null,
+  q:"", appFilter:"", range:"week", from:"", to:"",
+  prefs:{round:0, week:0},
+  sync:{url:"", key:"", manifest:""}, tombs:{}, syncState:"idle", syncMsg:"", syncedAt:0
+};
+
+var APPS = [
+  {k:"tt", t:"TempTrak",    s:"TempTrak"},
+  {k:"wx", t:"TheWorxHub",  s:"WorxHub"}
+];
+var TASKS = ["Support call","Install","Configuration","Troubleshooting","Training",
+             "Site visit","Meeting","Documentation","Travel","Admin"];
+var ROUNDS = [
+  {v:0,  t:"Exact minutes"},
+  {v:6,  t:"6 min (tenths)"},
+  {v:15, t:"15 min (quarters)"}
+];
+
+var BUILD = "v1";           // bump together with CACHE in sw.js on every deploy
+var BUILT = "2026-09-15";
+
+var LS_ENTRIES = "punchly.entries";
+var LS_SYNC    = "punchly.sync";
+var LS_TOMBS   = "punchly.tombs";
+var LS_PREFS   = "punchly.prefs";
+
+var SETUP_SQL = [
+  "create table if not exists public.punchly_entries (",
+  "  ledger_id text not null, id text not null,",
+  "  data jsonb not null default '{}'::jsonb,",
+  "  updated_at bigint not null, deleted boolean not null default false,",
+  "  primary key (ledger_id, id));",
+  "",
+  "alter table public.punchly_entries enable row level security;",
+  "revoke all on public.punchly_entries from anon, authenticated;",
+  "",
+  "create or replace function public.punchly_pull(p_ledger text)",
+  "returns table (id text, data jsonb, updated_at bigint, deleted boolean)",
+  "language plpgsql security definer set search_path = public as $$",
+  "begin",
+  "  if p_ledger is null or length(p_ledger) < 24 then raise exception 'bad ledger id'; end if;",
+  "  return query select e.id, e.data, e.updated_at, e.deleted",
+  "    from public.punchly_entries e where e.ledger_id = p_ledger;",
+  "end; $$;",
+  "",
+  "create or replace function public.punchly_push(p_ledger text, p_rows jsonb)",
+  "returns integer language plpgsql security definer set search_path = public as $$",
+  "declare n integer := 0;",
+  "begin",
+  "  if p_ledger is null or length(p_ledger) < 24 then raise exception 'bad ledger id'; end if;",
+  "  if jsonb_typeof(p_rows) <> 'array' then raise exception 'rows must be an array'; end if;",
+  "  insert into public.punchly_entries as m (ledger_id, id, data, updated_at, deleted)",
+  "  select p_ledger, r->>'id', coalesce(r->'data', '{}'::jsonb),",
+  "         (r->>'updated_at')::bigint, coalesce((r->>'deleted')::boolean, false)",
+  "  from jsonb_array_elements(p_rows) as r where r->>'id' is not null",
+  "  on conflict (ledger_id, id) do update",
+  "     set data = excluded.data, updated_at = excluded.updated_at, deleted = excluded.deleted",
+  "   where excluded.updated_at > m.updated_at;",
+  "  get diagnostics n = row_count; return n;",
+  "end; $$;",
+  "",
+  "grant execute on function public.punchly_pull(text)        to anon;",
+  "grant execute on function public.punchly_push(text, jsonb) to anon;"
+].join("\n");
+
+/* ============ helpers ============ */
+var $ = function(s,r){ return (r||document).querySelector(s); };
+var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+var two = function(n){ return String(n).padStart(2,"0"); };
+
+var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var DAY = 86400000;
+
+function uid(){
+  var a = new Uint8Array(8), out = "";
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  for(var i=0;i<a.length;i++) out += ("0" + a[i].toString(16)).slice(-2);
+  return out;
+}
+function toast(msg){
+  var el = $("#toast"); el.textContent = msg; el.classList.add("on");
+  clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove("on"); }, 2400);
+}
+function appOf(k){
+  for(var i=0;i<APPS.length;i++) if(APPS[i].k === k) return APPS[i];
+  return APPS[0];
+}
+function startOfDay(ts){ var d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+function dayKey(ts){ var d = new Date(ts); return d.getFullYear()+"-"+two(d.getMonth()+1)+"-"+two(d.getDate()); }
+function keyToTs(k){ var p = String(k).split("-"); return new Date(+p[0], +p[1]-1, +p[2]).getTime(); }
+function dayLabel(ts){
+  var k = startOfDay(ts), today = startOfDay(Date.now()), d = new Date(k);
+  if(k === today) return "Today";
+  if(k === today - DAY) return "Yesterday";
+  return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()];
+}
+function fmtClock(ts){
+  var d = new Date(ts), h = d.getHours() % 12;
+  return (h === 0 ? 12 : h) + ":" + two(d.getMinutes()) + " " + (d.getHours() < 12 ? "AM" : "PM");
+}
+function timeValue(ts){ var d = new Date(ts); return two(d.getHours()) + ":" + two(d.getMinutes()); }
+function mkTs(dateStr, timeStr){
+  var d = String(dateStr||"").split("-"), t = String(timeStr||"").split(":");
+  if(d.length !== 3 || t.length < 2) return 0;
+  var out = new Date(+d[0], +d[1]-1, +d[2], +t[0], +t[1], 0, 0).getTime();
+  return isNaN(out) ? 0 : out;
+}
+function durMs(e){ return Math.max(0, (e.end || Date.now()) - e.start); }
+function fmtHMS(ms){
+  var s = Math.floor(ms/1000);
+  return Math.floor(s/3600) + ":" + two(Math.floor(s/60)%60) + ":" + two(s%60);
+}
+function fmtHM(ms){
+  var m = Math.round(ms/60000), h = Math.floor(m/60);
+  return h ? (h + "h " + two(m%60) + "m") : (m + "m");
+}
+/* Rounding is per entry, nearest increment, but never down to nothing:
+   a five-minute call on quarter-hour rounding is still a quarter hour. */
+function roundedMs(ms){
+  var inc = S.prefs.round; if(!inc) return ms;
+  var q = inc * 60000, r = Math.round(ms/q) * q;
+  return (r === 0 && ms > 0) ? q : r;
+}
+function decHours(ms){ return roundedMs(ms) / 3600000; }
+function fmtHours(ms){ return decHours(ms).toFixed(2); }
+
+function all(){
+  return Array.from(S.entries.values()).sort(function(a,b){ return b.start - a.start; });
+}
+function running(){
+  var found = null;
+  S.entries.forEach(function(e){ if(!e.end && (!found || e.start > found.start)) found = e; });
+  return found;
+}
+function titleOf(e){
+  return e.notes || e.task || (e.customer ? e.customer : "");
+}
+function suggest(field){
+  var seen = {}, out = [];
+  all().forEach(function(e){
+    var v = String(e[field] || "").trim();
+    if(v && !seen[v.toLowerCase()]){ seen[v.toLowerCase()] = 1; out.push(v); }
+  });
+  return out;
+}
+
+/* ============ persistence ============ */
+function mirror(){
+  try{ localStorage.setItem(LS_ENTRIES, JSON.stringify(Array.from(S.entries.values()))); }catch(e){}
+}
+function savePrefs(){
+  try{ localStorage.setItem(LS_PREFS, JSON.stringify(S.prefs)); }catch(e){}
+}
+function saveTombs(){
+  try{ localStorage.setItem(LS_TOMBS, JSON.stringify(S.tombs)); }catch(e){}
+}
+function saveSync(){
+  try{
+    localStorage.setItem(LS_SYNC, JSON.stringify({
+      url:S.sync.url, key:S.sync.key, manifest:S.sync.manifest, syncedAt:S.syncedAt
+    }));
+  }catch(e){}
+}
+function normalize(d, id){
+  var appK = APPS.some(function(a){ return a.k === d.app; }) ? d.app : "tt";
+  var start = Number(d.start) || 0;
+  var end   = Number(d.end)   || 0;
+  if(end && end < start) end = start;
+  return {
+    id: d.id || id,
+    app: appK,
+    start: start || Date.now(),
+    end: end,
+    customer: String(d.customer || ""),
+    ticket: String(d.ticket || ""),
+    task: String(d.task || ""),
+    notes: String(d.notes || ""),
+    createdAt: Number(d.createdAt) || start || Date.now(),
+    updatedAt: Number(d.updatedAt) || Date.now()
+  };
+}
+function loadLocal(){
+  try{
+    var raw = localStorage.getItem(LS_ENTRIES);
+    if(raw) JSON.parse(raw).forEach(function(e){ S.entries.set(e.id, normalize(e, e.id)); });
+    var pf = localStorage.getItem(LS_PREFS);
+    if(pf){ var p = JSON.parse(pf) || {}; S.prefs.round = Number(p.round) || 0; S.prefs.week = Number(p.week) || 0; }
+    var sy = localStorage.getItem(LS_SYNC);
+    if(sy){ var o = JSON.parse(sy); S.sync = {url:o.url||"", key:o.key||"", manifest:o.manifest||""}; S.syncedAt = o.syncedAt || 0; }
+    var tb = localStorage.getItem(LS_TOMBS);
+    if(tb) S.tombs = JSON.parse(tb) || {};
+  }catch(e){}
+}
+function saveEntry(e){
+  e.updatedAt = Date.now();
+  S.entries.set(e.id, e);
+  mirror(); render(); queueSync();
+  return e;
+}
+function removeEntry(id){
+  S.entries.delete(id);
+  S.tombs[id] = Date.now();
+  saveTombs(); mirror(); queueSync();
+}
+
+/* ============ punching ============ */
+function punchIn(appK, meta){
+  var was = running(), now = Date.now();
+  if(was){ was.end = now; saveEntry(was); }
+  var e = normalize({
+    id: uid(), app: appK, start: now, end: 0,
+    customer: (meta && meta.customer) || "",
+    ticket:   (meta && meta.ticket)   || "",
+    task:     (meta && meta.task)     || "",
+    notes:    (meta && meta.notes)    || ""
+  });
+  saveEntry(e);
+  toast((was ? "Switched to " : "Punched in — ") + appOf(appK).t);
+  return e;
+}
+function punchOut(){
+  var e = running();
+  if(!e){ toast("Nothing is running."); return null; }
+  e.end = Date.now();
+  saveEntry(e);
+  toast("Punched out — " + fmtHM(durMs(e)) + " on " + appOf(e.app).t);
+  return e;
+}
+
+/* ============ ranges ============ */
+function weekStart(ts){
+  var d = new Date(startOfDay(ts));
+  var back = (d.getDay() - S.prefs.week + 7) % 7;
+  return d.getTime() - back * DAY;
+}
+function rangeBounds(){
+  var now = Date.now(), sod = startOfDay(now), d;
+  if(S.range === "today")  return {from:sod, to:sod + DAY, label:"Today"};
+  if(S.range === "week")   return {from:weekStart(now), to:weekStart(now) + 7*DAY, label:"This week"};
+  if(S.range === "last")   return {from:weekStart(now) - 7*DAY, to:weekStart(now), label:"Last week"};
+  if(S.range === "month"){
+    d = new Date(now);
+    var f = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    var t = new Date(d.getFullYear(), d.getMonth()+1, 1).getTime();
+    return {from:f, to:t, label:MON[d.getMonth()] + " " + d.getFullYear()};
+  }
+  var f2 = S.from ? keyToTs(S.from) : sod;
+  var t2 = (S.to ? keyToTs(S.to) : sod) + DAY;
+  if(t2 <= f2) t2 = f2 + DAY;
+  return {from:f2, to:t2, label:"Custom"};
+}
+function inRange(e, b){ return e.start >= b.from && e.start < b.to; }
+function rangeEntries(){
+  var b = rangeBounds();
+  return all().filter(function(e){ return inRange(e, b); });
+}
+function totalOf(list){
+  var out = {total:0, tt:0, wx:0};
+  list.forEach(function(e){
+    var ms = roundedMs(durMs(e));
+    out.total += ms; out[e.app] += ms;
+  });
+  return out;
+}
+function groupByDay(list){
+  var days = {}, order = [];
+  list.forEach(function(e){
+    var k = dayKey(e.start);
+    if(!days[k]){ days[k] = []; order.push(k); }
+    days[k].push(e);
+  });
+  order.sort().reverse();
+  return order.map(function(k){
+    return {key:k, ts:keyToTs(k), items:days[k].slice().sort(function(a,b){ return a.start - b.start; })};
+  });
+}
+
+/* ============ render ============ */
+function render(){
+  document.querySelectorAll("nav.tabs button").forEach(function(b){
+    var on = b.dataset.tab === S.view || (S.view === "entry" && b.dataset.tab === "log")
+          || (S.view === "new" && b.dataset.tab === "today");
+    b.setAttribute("aria-current", on ? "true" : "false");
+  });
+  var v = $("#view");
+  if(S.view === "today")       v.innerHTML = viewToday();
+  else if(S.view === "log")    v.innerHTML = viewLog();
+  else if(S.view === "report") v.innerHTML = viewReport();
+  else if(S.view === "sync")   v.innerHTML = viewSync();
+  else if(S.view === "entry")  v.innerHTML = viewEntry();
+  else if(S.view === "new")    v.innerHTML = viewNew();
+
+  $("#fab").hidden = !(S.view === "today" || S.view === "log");
+  $("#build").textContent = BUILD;
+  paintTally();
+  if(S.view === "sync" && S.sync.manifest) paintPairing();
+  if(S.view === "new"){ var f = $("#f-customer"); if(f) f.focus(); }
+}
+
+function paintTally(){
+  var now = Date.now(), sod = startOfDay(now);
+  var today = totalOf(all().filter(function(e){ return e.start >= sod; }));
+  var wk    = totalOf(all().filter(function(e){ return e.start >= weekStart(now); }));
+  var r = running();
+  $("#tally").innerHTML =
+    '<div class="' + (r ? "live" : "") + '">' +
+      (r ? '<span class="dot ' + r.app + '"></span>' : "") +
+      'Today <b>' + fmtHours(today.total) + '</b></div>' +
+    '<div>Week <b>' + fmtHours(wk.total) + '</b></div>';
+}
+
+/* the day at a glance: ember and teal blocks laid on a clock scale, so a gap
+   in the afternoon looks like a gap rather than arithmetic */
+function stripHtml(items, dayTs){
+  var live = running();
+  var lo = 24, hi = 0;
+  items.forEach(function(e){
+    var s = (e.start - dayTs) / 3600000, t = ((e.end || Date.now()) - dayTs) / 3600000;
+    lo = Math.min(lo, Math.floor(s)); hi = Math.max(hi, Math.ceil(t));
+  });
+  if(lo > hi){ lo = 8; hi = 17; }
+  lo = Math.max(0, Math.min(lo, 23)); hi = Math.min(24, Math.max(hi, lo + 1));
+  if(hi - lo < 6){ var pad = (6 - (hi - lo)) / 2; lo = Math.max(0, Math.floor(lo - pad)); hi = Math.min(24, lo + 6); }
+  var span = hi - lo;
+
+  var ticks = "";
+  for(var h = Math.ceil(lo) + 1; h < hi; h++)
+    ticks += '<div class="hr" style="left:' + (((h - lo) / span) * 100).toFixed(2) + '%"></div>';
+
+  var blocks = items.map(function(e){
+    var s = Math.max(lo, (e.start - dayTs) / 3600000);
+    var t = Math.min(hi, ((e.end || Date.now()) - dayTs) / 3600000);
+    if(t <= s) t = s + 0.02;
+    var isLive = live && live.id === e.id;
+    return '<div class="blk ' + e.app + (isLive ? " live" : "") + '"' + (isLive ? ' id="liveblk"' : "") +
+      ' data-left="' + lo + '" data-span="' + span + '" data-day="' + dayTs + '"' +
+      ' style="left:' + (((s - lo) / span) * 100).toFixed(2) + '%;width:' + (((t - s) / span) * 100).toFixed(2) + '%"' +
+      ' title="' + esc(fmtClock(e.start) + " · " + appOf(e.app).t) + '"></div>';
+  }).join("");
+
+  var label = function(h){ var x = h % 12; return (x === 0 ? 12 : x) + (h < 12 || h === 24 ? "a" : "p"); };
+  return '<div class="strip">' + ticks + blocks + '</div>' +
+         '<div class="strip-ax"><span>' + label(Math.round(lo)) + '</span><span>' + label(Math.round(hi)) + '</span></div>';
+}
+
+function rowHtml(e){
+  var live = !e.end;
+  var t = titleOf(e);
+  var bits = [];
+  if(e.customer) bits.push(esc(e.customer));
+  if(e.ticket) bits.push('#' + esc(e.ticket));
+  if(e.task && e.task !== t) bits.push(esc(e.task));
+  return '<button class="row ' + e.app + (live ? " running" : "") + '" data-open="' + e.id + '">' +
+    '<span class="when">' + fmtClock(e.start) + '<br>' + (live ? "running" : fmtClock(e.end)) + '</span>' +
+    '<span class="mid">' +
+      '<span class="title' + (t ? "" : " none") + '">' + (t ? esc(t) : "No description") + '</span>' +
+      '<span class="sub"><span class="chip ' + e.app + '">' + esc(appOf(e.app).t) + '</span>' +
+        (bits.length ? bits.join(' <span class="sep">·</span> ') : "") + '</span>' +
+    '</span>' +
+    '<span class="dur">' + fmtHours(durMs(e)) + '<small>HOURS</small></span>' +
+  '</button>';
+}
+
+function dayGroupHtml(g, withStrip){
+  var t = totalOf(g.items);
+  return '<div class="daygroup">' +
+    '<div class="dayhead"><h3>' + esc(dayLabel(g.ts)) + '</h3>' +
+      '<span class="dtot"><b>' + fmtHours(t.total) + '</b> h' +
+      (t.tt && t.wx ? ' <span class="sep">·</span> <span class="n-tt">' + fmtHours(t.tt) +
+        '</span> <span class="sep">/</span> <span class="n-wx">' + fmtHours(t.wx) + '</span>' : "") +
+      '</span></div>' +
+    (withStrip ? '<div class="strip-wrap">' + stripHtml(g.items, g.ts) + '</div>' : "") +
+    '<div class="rows">' + g.items.map(rowHtml).join("") + '</div>' +
+  '</div>';
+}
+
+function viewToday(){
+  var r = running(), sod = startOfDay(Date.now());
+  var today = all().filter(function(e){ return e.start >= sod; });
+  var t = totalOf(today);
+  var out = "";
+
+  if(r){
+    var a = appOf(r.app), bits = [];
+    if(r.customer) bits.push(esc(r.customer));
+    if(r.ticket) bits.push('#' + esc(r.ticket));
+    if(r.task) bits.push(esc(r.task));
+    var other = APPS.filter(function(x){ return x.k !== r.app; })[0];
+    var long = Date.now() - r.start > 10 * 3600000;
+    out += '<div class="punch on ' + r.app + '"><div class="punch-in">' +
+      '<div class="live-top"><span class="pulse"></span><span class="live-app">' + esc(a.t) + '</span>' +
+        '<span class="eyebrow">on the clock</span></div>' +
+      '<div class="elapsed" id="elapsed">' + fmtHMS(Date.now() - r.start) + '</div>' +
+      '<div class="since">Since <b>' + fmtClock(r.start) + '</b>' +
+        (startOfDay(r.start) < sod ? " " + esc(dayLabel(r.start).toLowerCase()) : "") +
+        ' · <b>' + fmtHours(durMs(r)) + '</b> h so far</div>' +
+      (long ? '<div class="overnight">That has been running over ten hours — if you forgot to punch out, open it and fix the end time.</div>' : "") +
+      (bits.length ? '<div class="livemeta">' + bits.join(' <span class="sep">·</span> ') + '</div>' : "") +
+      '<div class="btnrow">' +
+        '<button class="btn" id="punchout">Punch out</button>' +
+        '<button class="btn ghost" data-punch="' + other.k + '">Switch to ' + esc(other.s) + '</button>' +
+        '<button class="btn ghost" data-open="' + r.id + '">Details</button>' +
+      '</div>' +
+    '</div></div>';
+  } else {
+    out += '<div class="punch"><div class="punch-in">' +
+      '<div class="eyebrow">Punch in</div>' +
+      '<p class="idle-lead">Pick the application you are working in. Details can wait until you punch out.</p>' +
+      '<div class="punchbtns">' + APPS.map(function(a){
+        return '<button class="pbtn ' + a.k + '" data-punch="' + a.k + '">' +
+          '<span class="k">' + esc(a.t) + '</span>' +
+          '<span class="s">' + fmtHours(totalOf(today.filter(function(e){ return e.app === a.k; })).total) + ' h today</span>' +
+        '</button>';
+      }).join("") + '</div>' +
+    '</div></div>';
+  }
+
+  out += '<div class="sect"><div class="sect-head"><h2>Today</h2>' +
+    '<span class="right"><b class="mono">' + fmtHours(t.total) + '</b> h' +
+    (today.length ? " · " + today.length + " entr" + (today.length === 1 ? "y" : "ies") : "") + '</span></div>';
+
+  if(!today.length){
+    out += '<div class="empty"><b>Nothing logged today</b>' +
+      (S.entries.size ? "Punch in above, or add a past entry with the button below." :
+       "Punch in above when you start. Everything stays on this device until you set up sync.") + '</div>';
+  } else {
+    out += '<div class="strip-wrap">' + stripHtml(today, sod) + '</div>' +
+      '<div class="rows">' + today.slice().sort(function(a,b){ return a.start - b.start; }).map(rowHtml).join("") + '</div>';
+    if(t.tt && t.wx)
+      out += '<div class="card" style="margin-top:10px"><div class="bignum">' +
+        '<span class="h">' + fmtHours(t.total) + '</span><span class="u">hours today</span>' +
+        '<span class="split"><div class="tt"><div class="n">' + fmtHours(t.tt) + '</div><div class="l">TempTrak</div></div>' +
+        '<div class="wx"><div class="n">' + fmtHours(t.wx) + '</div><div class="l">WorxHub</div></div></span>' +
+      '</div></div>';
+  }
+  out += '</div>';
+  return out;
+}
+
+function matches(e){
+  if(S.appFilter && e.app !== S.appFilter) return false;
+  var q = S.q.trim().toLowerCase();
+  if(!q) return true;
+  return (e.notes + " " + e.customer + " " + e.ticket + " " + e.task + " " + appOf(e.app).t)
+    .toLowerCase().indexOf(q) > -1;
+}
+function logBody(){
+  var list = all().filter(matches);
+  if(!list.length)
+    return '<div class="empty"><b>' + (S.entries.size ? "Nothing matches" : "No time logged yet") + '</b>' +
+      (S.entries.size ? "Try a different search, or clear the filters." :
+       "Punch in from the Today tab, or add an entry by hand.") + '</div>';
+  var groups = groupByDay(list).slice(0, 120);
+  return groups.map(function(g){ return dayGroupHtml(g, false); }).join("");
+}
+function viewLog(){
+  return '<div class="search"><input id="q" type="search" placeholder="Search notes, customer, ticket…" value="' + esc(S.q) + '" autocomplete="off">' +
+      (S.q ? '<button class="clear" id="qclear" aria-label="Clear search">Clear</button>' : "") + '</div>' +
+    '<div class="filters">' +
+      '<button data-app="" aria-pressed="' + (S.appFilter === "" ? "true" : "false") + '">All</button>' +
+      APPS.map(function(a){
+        return '<button class="' + a.k + '" data-app="' + a.k + '" aria-pressed="' + (S.appFilter === a.k ? "true" : "false") + '">' + esc(a.t) + '</button>';
+      }).join("") +
+    '</div>' +
+    '<div id="logbody">' + logBody() + '</div>';
+}
+
+/* ============ entry form ============ */
+function datalists(){
+  return '<datalist id="dl-customer">' + suggest("customer").map(function(v){ return '<option value="' + esc(v) + '">'; }).join("") + '</datalist>' +
+    '<datalist id="dl-task">' + TASKS.concat(suggest("task").filter(function(v){ return TASKS.indexOf(v) < 0; }))
+      .map(function(v){ return '<option value="' + esc(v) + '">'; }).join("") + '</datalist>';
+}
+function segHtml(sel){
+  return '<div class="seg" id="f-app">' + APPS.map(function(a){
+    return '<button type="button" class="' + a.k + '" data-setapp="' + a.k + '" aria-pressed="' + (sel === a.k ? "true" : "false") + '">' + esc(a.t) + '</button>';
+  }).join("") + '</div>';
+}
+function formFields(e, running){
+  return '<div class="field"><label>Application</label>' + segHtml(e.app) + '</div>' +
+    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + dayKey(e.start) + '"></div>' +
+    '<div class="grid2">' +
+      '<div class="field"><label>Start</label><input id="f-start" type="time" value="' + timeValue(e.start) + '"></div>' +
+      '<div class="field"><label>End</label><input id="f-end" type="time" value="' + (e.end ? timeValue(e.end) : "") + '"' +
+        (running ? ' placeholder="running"' : "") + '>' +
+        (running ? '<div class="hint">Leave empty to keep the clock running.</div>' : "") + '</div>' +
+    '</div>' +
+    '<div class="grid2">' +
+      '<div class="field"><label>Customer or site</label><input id="f-customer" list="dl-customer" value="' + esc(e.customer) + '" placeholder="Mercy Regional" autocomplete="off"></div>' +
+      '<div class="field"><label>Ticket or work order</label><input id="f-ticket" value="' + esc(e.ticket) + '" placeholder="48127" autocomplete="off"></div>' +
+    '</div>' +
+    '<div class="field"><label>Task type</label><input id="f-task" list="dl-task" value="' + esc(e.task) + '" placeholder="Troubleshooting" autocomplete="off"></div>' +
+    '<div class="field"><label>What you did</label><textarea id="f-notes" placeholder="Replaced the sensor battery in the blood bank fridge and re-ran the calibration.">' + esc(e.notes) + '</textarea></div>' +
+    datalists();
+}
+function viewNew(){
+  var now = Date.now();
+  var last = all().filter(function(e){ return e.end; })[0];
+  var start = (last && startOfDay(last.end) === startOfDay(now) && last.end < now) ? last.end : now - 3600000;
+  var draft = normalize({id:"draft", app:"tt", start:start, end:now});
+  return '<div class="crumb"><button class="back" data-back="today">‹ Back</button><h2>Log time</h2></div>' +
+    '<div class="card form">' + formFields(draft, false) +
+      '<div class="btnrow"><button class="btn" id="savenew">Save entry</button>' +
+      '<button class="btn ghost" data-back="today">Cancel</button></div>' +
+    '</div>';
+}
+function viewEntry(){
+  var e = S.entries.get(S.current);
+  if(!e) return '<div class="empty"><b>That entry is gone</b>It may have been deleted on another device.</div>';
+  var live = !e.end;
+  return '<div class="crumb"><button class="back" data-back="log">‹ Back</button>' +
+      '<h2>' + esc(appOf(e.app).t) + '</h2>' +
+      '<span class="chip ' + e.app + '">' + (live ? "Running" : fmtHours(durMs(e)) + " h") + '</span></div>' +
+    '<div class="card form">' +
+      '<div class="durreadout" id="durout"><b>' + (live ? fmtHMS(durMs(e)) : fmtHM(durMs(e))) + '</b>' +
+        '<span>' + (live ? "still running" : fmtClock(e.start) + " – " + fmtClock(e.end)) + '</span>' +
+        '<span style="margin-left:auto">' + fmtHours(durMs(e)) + ' h billed</span></div>' +
+      '<div style="height:11px"></div>' +
+      formFields(e, live) +
+      '<div class="btnrow">' +
+        '<button class="btn" id="saveentry">Save</button>' +
+        (live ? '<button class="btn ghost" id="punchout">Punch out now</button>'
+              : '<button class="btn ghost" id="again">Punch in again</button>') +
+        '<button class="btn danger" id="delentry">Delete</button>' +
+      '</div>' +
+    '</div>';
+}
+
+/* ============ report ============ */
+var RANGES = [
+  {k:"today", t:"Today"}, {k:"week", t:"This week"}, {k:"last", t:"Last week"},
+  {k:"month", t:"This month"}, {k:"custom", t:"Custom"}
+];
+function breakdown(list, field, fallback){
+  var by = {};
+  list.forEach(function(e){
+    var k = String(e[field] || "").trim() || fallback;
+    if(!by[k]) by[k] = {k:k, total:0, tt:0, wx:0, n:0};
+    var ms = roundedMs(durMs(e));
+    by[k].total += ms; by[k][e.app] += ms; by[k].n++;
+  });
+  return Object.keys(by).map(function(k){ return by[k]; })
+    .sort(function(a,b){ return b.total - a.total; });
+}
+function brkTable(rows, head, max){
+  if(!rows.length) return "";
+  return '<div class="card sect"><div class="tblwrap"><table class="brk">' +
+    '<tr><th>' + esc(head) + '</th><th class="r">Hours</th></tr>' +
+    rows.map(function(r){
+      var pctT = max ? (r.tt / max) * 100 : 0, pctW = max ? (r.wx / max) * 100 : 0;
+      return '<tr><td>' + esc(r.k) +
+        '<div class="bar"><i class="tt" style="width:' + pctT.toFixed(1) + '%"></i><i class="wx" style="width:' + pctW.toFixed(1) + '%"></i></div>' +
+        '</td><td class="r">' + fmtHours(r.total) + '</td></tr>';
+    }).join("") + '</table></div></div>';
+}
+function viewReport(){
+  var b = rangeBounds(), list = rangeEntries(), t = totalOf(list);
+  var days = groupByDay(list);
+  var maxDay = 0;
+  days.forEach(function(g){ var d = totalOf(g.items).total; if(d > maxDay) maxDay = d; });
+
+  var out = '<div class="filters">' + RANGES.map(function(r){
+      return '<button data-range="' + r.k + '" aria-pressed="' + (S.range === r.k ? "true" : "false") + '">' + esc(r.t) + '</button>';
+    }).join("") + '</div>';
+
+  if(S.range === "custom")
+    out += '<div class="card sect"><div class="prefs">' +
+      '<div class="field"><label>From</label><input id="r-from" type="date" value="' + esc(S.from || dayKey(b.from)) + '"></div>' +
+      '<div class="field"><label>To</label><input id="r-to" type="date" value="' + esc(S.to || dayKey(b.to - DAY)) + '"></div>' +
+      '</div></div>';
+
+  out += '<div class="card sect"><div class="bignum">' +
+      '<span class="h">' + fmtHours(t.total) + '</span><span class="u">hours · ' + esc(b.label).toLowerCase() + '</span>' +
+      '<span class="split">' +
+        '<div class="tt"><div class="n">' + fmtHours(t.tt) + '</div><div class="l">TempTrak</div></div>' +
+        '<div class="wx"><div class="n">' + fmtHours(t.wx) + '</div><div class="l">WorxHub</div></div>' +
+      '</span></div>' +
+      '<div style="padding:0 16px 14px"><div class="bar" style="height:9px">' +
+        '<i class="tt" style="width:' + (t.total ? (t.tt / t.total) * 100 : 0).toFixed(1) + '%"></i>' +
+        '<i class="wx" style="width:' + (t.total ? (t.wx / t.total) * 100 : 0).toFixed(1) + '%"></i>' +
+      '</div></div></div>';
+
+  out += '<div class="card sect"><div class="prefs">' +
+      '<div class="field"><label>Round each entry to</label><select id="p-round">' +
+        ROUNDS.map(function(r){ return '<option value="' + r.v + '"' + (S.prefs.round === r.v ? " selected" : "") + '>' + esc(r.t) + '</option>'; }).join("") +
+      '</select></div>' +
+      '<div class="field"><label>Week starts</label><select id="p-week">' +
+        '<option value="0"' + (S.prefs.week === 0 ? " selected" : "") + '>Sunday</option>' +
+        '<option value="1"' + (S.prefs.week === 1 ? " selected" : "") + '>Monday</option>' +
+      '</select></div>' +
+    '</div></div>';
+
+  if(!list.length){
+    out += '<div class="empty"><b>Nothing in this range</b>Pick another range, or punch in and come back.</div>';
+  } else {
+    out += '<div class="btnrow sect">' +
+      '<button class="btn" id="copysum">Copy summary</button>' +
+      '<button class="btn ghost" id="csv">Download CSV</button>' +
+    '</div>';
+
+    if(days.length > 1)
+      out += brkTable(days.map(function(g){
+        var d = totalOf(g.items);
+        return {k:dayLabel(g.ts), total:d.total, tt:d.tt, wx:d.wx, n:g.items.length};
+      }), "Day", maxDay);
+
+    var byCust = breakdown(list, "customer", "No customer");
+    if(byCust.length) out += brkTable(byCust, "Customer or site", byCust[0].total);
+    var byTask = breakdown(list, "task", "Uncategorised");
+    if(byTask.length > 1) out += brkTable(byTask, "Task type", byTask[0].total);
+
+    out += '<div class="sect"><div class="sect-head"><h2>Entries</h2><span class="right">' + list.length + '</span></div>' +
+      days.map(function(g){ return dayGroupHtml(g, false); }).join("") + '</div>';
+  }
+
+  out += '<div class="sect"><div class="sect-head"><h2>Backup</h2></div>' +
+    '<div class="card form"><p class="note">Entries live in this browser. Safari clears a site’s storage after seven days without a visit, so keep a backup file somewhere durable — or turn on Sync, which keeps a copy on the server.</p>' +
+    '<div class="btnrow" style="margin-top:11px"><button class="btn ghost" id="backup">Save a backup file</button>' +
+    '<button class="btn ghost" id="restore">Restore from a backup</button></div>' +
+    '<input id="restorefile" type="file" accept="application/json,.json" hidden></div></div>';
+  return out;
+}
+
+/* ============ export ============ */
+function csvCell(v){
+  var s = String(v == null ? "" : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvFor(list){
+  var head = ["Date","Start","End","Hours","Application","Customer","Ticket","Task","Notes"];
+  var rows = list.slice().sort(function(a,b){ return a.start - b.start; }).map(function(e){
+    return [dayKey(e.start), fmtClock(e.start), e.end ? fmtClock(e.end) : "running",
+            fmtHours(durMs(e)), appOf(e.app).t, e.customer, e.ticket, e.task, e.notes]
+      .map(csvCell).join(",");
+  });
+  return head.join(",") + "\n" + rows.join("\n") + "\n";
+}
+function summaryFor(list, label){
+  var t = totalOf(list), out = ["Punchly — " + label,
+    fmtHours(t.total) + " h total · TempTrak " + fmtHours(t.tt) + " · TheWorxHub " + fmtHours(t.wx), ""];
+  groupByDay(list).slice().reverse().forEach(function(g){
+    var d = totalOf(g.items);
+    out.push(dayLabel(g.ts) + " (" + dayKey(g.ts) + ") — " + fmtHours(d.total) + " h");
+    g.items.forEach(function(e){
+      var bits = [];
+      if(e.customer) bits.push(e.customer);
+      if(e.ticket) bits.push("#" + e.ticket);
+      if(e.task) bits.push(e.task);
+      if(e.notes) bits.push(e.notes);
+      out.push("  " + fmtHours(durMs(e)) + "  " + appOf(e.app).t + "  " +
+        fmtClock(e.start) + "–" + (e.end ? fmtClock(e.end) : "running") +
+        (bits.length ? "  " + bits.join(" · ") : ""));
+    });
+    out.push("");
+  });
+  return out.join("\n");
+}
+function saveBlob(blob, filename){
+  var url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+function copyText(text, ok){
+  var done = function(){ toast(ok); };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    return navigator.clipboard.writeText(text).then(done, function(){ fallback(); });
+  fallback();
+  function fallback(){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); done(); }catch(e){ toast("Couldn’t copy — select it by hand."); }
+    ta.remove();
+  }
+}
+function exportJson(){
+  saveBlob(new Blob([JSON.stringify({
+    app:"punchly", version:1, exportedAt:Date.now(),
+    entries:Array.from(S.entries.values())
+  }, null, 2)], {type:"application/json"}), "punchly-backup-" + dayKey(Date.now()) + ".json");
+  toast("Backup saved");
+}
+function importJson(file){
+  var r = new FileReader();
+  r.onload = function(){
+    try{
+      var o = JSON.parse(r.result);
+      var list = Array.isArray(o) ? o : (o.entries || []);
+      if(!Array.isArray(list)) throw new Error("bad");
+      var added = 0, updated = 0;
+      list.forEach(function(raw){
+        if(!raw || !raw.id) return;
+        var e = normalize(raw, raw.id), have = S.entries.get(e.id);
+        if(!have){ S.entries.set(e.id, e); added++; }
+        else if(e.updatedAt > have.updatedAt){ S.entries.set(e.id, e); updated++; }
+      });
+      mirror(); render(); queueSync();
+      toast("Restored — " + added + " added, " + updated + " updated");
+    }catch(err){ toast("That file isn’t a Punchly backup."); }
+  };
+  r.readAsText(file);
+}
+
+/* ============ sync view ============ */
+function viewSync(){
+  var ready = syncReady();
+  var out = '<div class="sect"><div class="sect-head"><h2>Sync</h2></div>' +
+    '<div class="card"><div class="status"><span class="syncdot ' +
+      (S.syncState === "ok" ? "on" : S.syncState === "error" ? "err" : S.syncState === "busy" ? "busy" : "") +
+      '" id="syncdot"></span><span>' +
+      (ready ? esc(S.syncMsg || (S.syncedAt ? "Last synced " + fmtClock(S.syncedAt) : "Connected")) :
+               "Not connected — this device keeps its own log.") + '</span>' +
+      (ready ? '<button class="btn ghost sm" id="syncnow" style="margin-left:auto">Sync now</button>' : "") +
+    '</div></div></div>';
+
+  if(ready){
+    out += '<div class="sect"><div class="sect-head"><h2>Add another device</h2></div>' +
+      '<div class="card form">' +
+        '<p class="note">Scan this with the other phone’s camera, or send yourself the link. It carries the ledger id — <b>typing the URL and key again instead would start a fresh, empty log.</b></p>' +
+        '<div class="qrbox" id="pairqr" style="margin-top:12px"></div>' +
+        '<div class="btnrow" style="margin-top:12px"><button class="btn ghost" id="copypair">Copy pairing link</button>' +
+        '<button class="btn ghost" id="forget">Disconnect this device</button></div>' +
+        '<p class="note" style="margin-top:10px">Ledger <span class="mono">' + esc(S.sync.manifest.slice(0,8)) + '…</span> — every device sharing this log shows the same.</p>' +
+      '</div></div>';
+  }
+
+  out += '<div class="sect"><div class="sect-head"><h2>' + (ready ? "Connection" : "Connect") + '</h2></div>' +
+    '<div class="card form">' +
+      (ready ? "" : '<p class="note">One free Supabase project keeps the phone and the computer on one log. Create the project, run the SQL below in its SQL editor, then paste the two values from Project Settings → API.</p><div style="height:11px"></div>') +
+      '<div class="field"><label>Project URL</label><input id="s-url" value="' + esc(S.sync.url) + '" placeholder="https://abcdefgh.supabase.co" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="field"><label>Anon public key</label><input id="s-key" value="' + esc(S.sync.key) + '" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="btnrow"><button class="btn" id="connect">' + (ready ? "Update" : "Connect") + '</button>' +
+        '<button class="btn ghost" id="showsql">Copy setup SQL</button></div>' +
+      (ready ? "" :
+        '<div class="field" style="margin-top:14px"><label>Or join a log that already exists</label>' +
+        '<input id="s-pair" placeholder="Paste a pairing link" autocomplete="off">' +
+        '<div class="hint">From another device: Sync → Copy pairing link.</div></div>' +
+        '<button class="btn ghost" id="joinpair">Join</button>') +
+    '</div></div>';
+
+  out += '<div class="sect"><div class="sect-head"><h2>Setup SQL</h2></div>' +
+    '<div class="card form"><div class="code">' + esc(SETUP_SQL) + '</div></div></div>';
+  return out;
+}
+function pairPayload(){
+  return btoa(JSON.stringify({u:S.sync.url, k:S.sync.key, m:S.sync.manifest}));
+}
+function pairLink(){
+  var base = location.origin + location.pathname;
+  return base + "?pair=" + encodeURIComponent(pairPayload());
+}
+function paintPairing(){
+  var box = $("#pairqr"); if(!box) return;
+  if(typeof qrcode !== "function"){ box.innerHTML = '<div class="note" style="text-align:center">QR unavailable</div>'; return; }
+  try{
+    var qr = qrcode(0, "L"); qr.addData(pairLink()); qr.make();
+    var n = qr.getModuleCount(), m = 2, size = n + m*2, d = "";
+    for(var r=0;r<n;r++) for(var c=0;c<n;c++) if(qr.isDark(r,c)) d += "M"+(c+m)+" "+(r+m)+"h1v1h-1z";
+    box.innerHTML = '<svg viewBox="0 0 '+size+' '+size+'" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" style="display:block;width:100%" role="img" aria-label="Pairing code">' +
+      '<rect width="'+size+'" height="'+size+'" fill="#ffffff"/><path d="'+d+'" fill="#000000"/></svg>';
+  }catch(e){ box.innerHTML = '<div class="note" style="text-align:center">QR too large — use the link.</div>'; }
+}
+
+/* ============ version ============
+   A cache-first service worker can leave a device a deploy behind with no
+   outward sign, so the version is both shown and checkable on demand. */
+function checkForUpdate(){
+  var chip = $("#build");
+  if(chip) chip.textContent = BUILD + " · checking";
+  fetch("index.html?v=" + Date.now(), {cache:"no-store"})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var m = t.match(/var BUILD = "(v\d+)"/);
+      var latest = m ? m[1] : null;
+      if(chip) chip.textContent = BUILD;
+      if(!latest) return toast("Punchly " + BUILD + " · built " + BUILT);
+      if(latest === BUILD) return toast("Punchly " + BUILD + " · built " + BUILT + " · up to date");
+      if(chip) chip.className = "build stale";
+      toast(latest + " is available — updating…");
+      var done = function(){ location.reload(); };
+      if(window.caches && caches.keys)
+        caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).then(done, done);
+      else done();
+    })
+    .catch(function(){
+      if(chip) chip.textContent = BUILD;
+      toast("Punchly " + BUILD + " · built " + BUILT + " · offline, can’t check");
+    });
+}
+
+/* ============ sync ============
+   Two RPCs against Supabase, last-write-wins per entry decided by each
+   entry's own updatedAt. The table is unreachable without the ledger id — a
+   128-bit random string that only ever travels between your own devices. */
+function syncReady(){ return !!(S.sync.url && S.sync.key && S.sync.manifest); }
+function newLedgerId(){
+  var a = new Uint8Array(16), out = "";
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  for(var i=0;i<a.length;i++) out += ("0" + a[i].toString(16)).slice(-2);
+  return out;
+}
+function normalizeSyncUrl(raw){
+  var u = String(raw || "").trim().replace(/\s+/g, "");
+  if(!u) return "";
+  if(!/^https?:\/\//i.test(u)) u = "https://" + u;
+  u = u.replace(/\/+$/, "");
+  // Pasting the dashboard address is the easy mistake — derive the API origin.
+  var m = u.match(/^https?:\/\/(?:www\.)?supabase\.(?:com|io)\/dashboard\/project\/([a-z0-9]+)/i);
+  if(m) return "https://" + m[1] + ".supabase.co";
+  try{ return new URL(u).origin; }catch(e){ return u; }
+}
+function rpc(fn, body){
+  var base = S.sync.url.replace(/\/+$/, "");
+  return fetch(base + "/rest/v1/rpc/" + fn, {
+    method:"POST",
+    headers:{"apikey":S.sync.key, "Authorization":"Bearer " + S.sync.key, "Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }).then(function(res){
+    var ct = res.headers.get("content-type") || "";
+    if(res.ok && ct.indexOf("json") > -1) return res.json();
+    return res.text().then(function(t){
+      if(ct.indexOf("html") > -1 || /^\s*</.test(t))
+        throw new Error("That Project URL is a web page, not the API. Use the form https://<project-ref>.supabase.co");
+      if(res.status === 401 || res.status === 403)
+        throw new Error("Key rejected. Copy the anon public key (not service_role) from Project Settings.");
+      if(res.status === 404)
+        throw new Error("Connected, but punchly_pull is missing — run the setup SQL in the SQL editor first.");
+      throw new Error((t || "HTTP " + res.status).slice(0, 160));
+    });
+  });
+}
+function setSyncState(state, msg){
+  S.syncState = state; S.syncMsg = msg || "";
+  var dot = $("#syncdot");
+  if(dot) dot.className = "syncdot " + (state === "ok" ? "on" : state === "error" ? "err" : state === "busy" ? "busy" : "");
+}
+var syncTimer = null;
+function queueSync(){
+  if(!syncReady()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function(){ syncNow(); }, 1500);
+}
+var syncing = false;
+function syncNow(){
+  if(!syncReady() || syncing) return Promise.resolve();
+  syncing = true;
+  setSyncState("busy", "Syncing…");
+  if(S.view === "sync") render();
+  return rpc("punchly_pull", {p_ledger:S.sync.manifest}).then(function(rows){
+    rows = rows || [];
+    var remote = {}, changed = false;
+    rows.forEach(function(r){
+      var id = r.id, ts = Number(r.updated_at) || 0;
+      remote[id] = ts;
+      var local = S.entries.get(id), localTs = local ? (local.updatedAt || 0) : 0;
+      var tomb = S.tombs[id] || 0;
+      if(r.deleted){
+        if(ts > localTs && ts > tomb && local){ S.entries.delete(id); changed = true; }
+        return;
+      }
+      if(ts > tomb && (!local || ts > localTs)){
+        S.entries.set(id, normalize(r.data || {}, id));
+        changed = true;
+      }
+    });
+
+    var out = [];
+    S.entries.forEach(function(e){
+      var ts = e.updatedAt || 0;
+      if(ts > (remote[e.id] || 0)) out.push({id:e.id, data:e, updated_at:ts, deleted:false});
+    });
+    Object.keys(S.tombs).forEach(function(id){
+      if(S.tombs[id] > (remote[id] || 0)) out.push({id:id, data:{}, updated_at:S.tombs[id], deleted:true});
+    });
+
+    if(changed) mirror();
+    if(!out.length) return 0;
+    return rpc("punchly_push", {p_ledger:S.sync.manifest, p_rows:out}).then(function(){ return out.length; });
+  }).then(function(n){
+    syncing = false;
+    S.syncedAt = Date.now(); saveSync();
+    setSyncState("ok", n ? ("Sent " + n + " change" + (n === 1 ? "" : "s")) : "Up to date");
+    render();
+  }).catch(function(err){
+    syncing = false;
+    var m = String(err && err.message || err);
+    setSyncState("error", /Failed to fetch|NetworkError/i.test(m)
+      ? "No connection — your entries are saved here and will go up later."
+      : m.slice(0, 140));
+    if(S.view === "sync") render();
+  });
+}
+
+/* ============ navigation ============ */
+function go(view, id){
+  S.view = view;
+  if(id !== undefined) S.current = id;
+  render();
+  window.scrollTo(0, 0);
+}
+function readForm(e){
+  var appBtn = document.querySelector('#f-app button[aria-pressed="true"]');
+  var date = $("#f-date").value, st = $("#f-start").value, en = $("#f-end").value;
+  var start = mkTs(date, st);
+  if(!start) return null;
+  var end = en ? mkTs(date, en) : 0;
+  // An end before the start means the work ran past midnight.
+  if(end && end < start) end += DAY;
+  e.app = appBtn ? appBtn.dataset.setapp : e.app;
+  e.start = start;
+  e.end = end;
+  e.customer = $("#f-customer").value.trim();
+  e.ticket = $("#f-ticket").value.trim();
+  e.task = $("#f-task").value.trim();
+  e.notes = $("#f-notes").value.trim();
+  return e;
+}
+
+/* ============ events ============ */
+document.addEventListener("click", function(ev){
+  var t = ev.target.closest("button"); if(!t) return;
+
+  if(t.dataset.tab) return go(t.dataset.tab);
+  if(t.dataset.back) return go(t.dataset.back);
+  if(t.dataset.open) return go("entry", t.dataset.open);
+  if(t.id === "fab") return go("new");
+  if(t.id === "build") return checkForUpdate();
+
+  if(t.dataset.setapp !== undefined){
+    Array.prototype.forEach.call(t.parentNode.children, function(b){
+      b.setAttribute("aria-pressed", b === t ? "true" : "false");
+    });
+    return;
+  }
+  if(t.dataset.punch){
+    var was = running();
+    punchIn(t.dataset.punch, was ? {customer:was.customer, ticket:was.ticket} : null);
+    return go("today");
+  }
+  if(t.id === "punchout"){
+    var done = punchOut();
+    return done ? go("entry", done.id) : null;
+  }
+  if(t.id === "again"){
+    var src = S.entries.get(S.current); if(!src) return;
+    var fresh = punchIn(src.app, {customer:src.customer, ticket:src.ticket, task:src.task});
+    return go("entry", fresh.id);
+  }
+
+  if(t.dataset.app !== undefined){ S.appFilter = t.dataset.app; return render(); }
+  if(t.id === "qclear"){ S.q = ""; return render(); }
+  if(t.dataset.range){ S.range = t.dataset.range; return render(); }
+
+  if(t.id === "savenew"){
+    var made = readForm(normalize({id:uid(), app:"tt", start:Date.now(), end:0}));
+    if(!made) return toast("Give the entry a date and a start time.");
+    if(!made.end) return toast("An entry added by hand needs an end time.");
+    saveEntry(made);
+    toast("Logged " + fmtHours(durMs(made)) + " h on " + appOf(made.app).t);
+    return go("entry", made.id);
+  }
+  if(t.id === "saveentry"){
+    var cur = S.entries.get(S.current); if(!cur) return;
+    if(!readForm(cur)) return toast("Give the entry a date and a start time.");
+    saveEntry(cur);
+    toast("Saved");
+    return;
+  }
+  if(t.id === "delentry"){
+    var gone = S.current;
+    removeEntry(gone);
+    toast("Entry deleted");
+    return go("log");
+  }
+
+  if(t.id === "copysum"){
+    var b = rangeBounds();
+    return copyText(summaryFor(rangeEntries(), b.label), "Summary copied");
+  }
+  if(t.id === "csv"){
+    var bb = rangeBounds();
+    saveBlob(new Blob([csvFor(rangeEntries())], {type:"text/csv"}),
+      "punchly-" + dayKey(bb.from) + "-to-" + dayKey(bb.to - DAY) + ".csv");
+    return toast("CSV downloaded");
+  }
+  if(t.id === "backup") return exportJson();
+  if(t.id === "restore"){ var fi = $("#restorefile"); if(fi) fi.click(); return; }
+
+  if(t.id === "connect"){
+    var url = normalizeSyncUrl($("#s-url").value), key = $("#s-key").value.trim();
+    if(!url || !key) return toast("Both the Project URL and the anon key are needed.");
+    S.sync.url = url; S.sync.key = key;
+    if(!S.sync.manifest) S.sync.manifest = newLedgerId();
+    saveSync(); render();
+    return syncNow().then(function(){ if(S.syncState === "ok") toast("Connected"); });
+  }
+  if(t.id === "syncnow") return syncNow();
+  if(t.id === "showsql") return copyText(SETUP_SQL, "SQL copied — paste it into the Supabase SQL editor");
+  if(t.id === "copypair") return copyText(pairLink(), "Pairing link copied");
+  if(t.id === "joinpair"){
+    var pv = $("#s-pair").value.trim();
+    if(!pv) return $("#s-pair").focus();
+    return applyPairing(pv) ? render() : null;
+  }
+  if(t.id === "forget"){
+    S.sync = {url:"", key:"", manifest:""}; S.syncedAt = 0;
+    saveSync(); setSyncState("idle", "");
+    toast("Disconnected — entries stay on this device.");
+    return render();
+  }
+});
+
+document.addEventListener("input", function(e){
+  if(e.target.id === "q"){
+    S.q = e.target.value;
+    var body = $("#logbody"); if(body) body.innerHTML = logBody();
+    var cl = $("#qclear");
+    if(S.q && !cl){
+      var cb = document.createElement("button");
+      cb.className = "clear"; cb.id = "qclear"; cb.textContent = "Clear";
+      cb.setAttribute("aria-label", "Clear search");
+      e.target.parentNode.appendChild(cb);
+    } else if(!S.q && cl){ cl.remove(); }
+    return;
+  }
+  if(e.target.id === "f-start" || e.target.id === "f-end" || e.target.id === "f-date"){
+    var out = $("#durout"); if(!out) return;
+    var s = mkTs($("#f-date").value, $("#f-start").value);
+    var en = $("#f-end").value ? mkTs($("#f-date").value, $("#f-end").value) : 0;
+    if(en && en < s) en += DAY;
+    if(s && en) out.innerHTML = '<b>' + fmtHM(en - s) + '</b><span>' + fmtClock(s) + ' – ' + fmtClock(en) + '</span>' +
+      '<span style="margin-left:auto">' + fmtHours(en - s) + ' h billed</span>';
+  }
+});
+
+document.addEventListener("change", function(e){
+  if(e.target.id === "restorefile" && e.target.files && e.target.files[0]) return importJson(e.target.files[0]);
+  if(e.target.id === "p-round"){ S.prefs.round = Number(e.target.value) || 0; savePrefs(); return render(); }
+  if(e.target.id === "p-week"){ S.prefs.week = Number(e.target.value) || 0; savePrefs(); return render(); }
+  if(e.target.id === "r-from"){ S.from = e.target.value; return render(); }
+  if(e.target.id === "r-to"){ S.to = e.target.value; return render(); }
+});
+
+/* ============ live clock ============
+   The running entry ticks in place rather than through a re-render, so an
+   open form keeps its focus and whatever is half-typed in it. */
+function tick(){
+  var r = running(); if(!r) return;
+  var el = $("#elapsed");
+  if(el) el.textContent = fmtHMS(Date.now() - r.start);
+  var blk = $("#liveblk");
+  if(blk){
+    var day = Number(blk.dataset.day), lo = Number(blk.dataset.left), span = Number(blk.dataset.span);
+    var s = Math.max(lo, (r.start - day) / 3600000);
+    var t = Math.min(lo + span, (Date.now() - day) / 3600000);
+    blk.style.width = Math.max(0.2, ((t - s) / span) * 100).toFixed(2) + "%";
+  }
+  if(Date.now() % 60000 < 1000) paintTally();
+}
+setInterval(tick, 1000);
+
+/* ============ boot ============ */
+// Deep links, so Shortcuts and Siri can land on the right screen:
+//   ?punch=tt    start TempTrak       ?stop        punch out
+//   ?punch=wx    start TheWorxHub     ?go=new      log time by hand
+//   ?go=log      the whole log        ?go=report   totals and export
+function urlParam(key){
+  var raw = (location.search || "") + (location.hash ? "&" + location.hash.slice(1) : "");
+  var m = raw.match(new RegExp("[?&]" + key + "=([^&]*)"));
+  return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null;
+}
+function hasParam(key){
+  var raw = (location.search || "") + (location.hash ? "&" + location.hash.slice(1) : "");
+  return new RegExp("[?&]" + key + "(=|&|$)").test(raw);
+}
+function applyPairing(raw){
+  try{
+    var m = String(raw).match(/[?&#]pair=([^&]+)/);
+    if(!m) return false;
+    var o = JSON.parse(atob(decodeURIComponent(m[1])));
+    if(!o.u || !o.k || !o.m) return false;
+    S.sync = {url:o.u, key:o.k, manifest:o.m};
+    saveSync();
+    toast("Paired — pulling the shared log…");
+    syncNow();
+    return true;
+  }catch(e){ toast("That pairing code could not be read."); return false; }
+}
+function startFromUrl(){
+  if(urlParam("pair")){ applyPairing(location.href); S.view = "sync"; return; }
+  var p = urlParam("punch");
+  if(p && APPS.some(function(a){ return a.k === p; })){
+    var was = running();
+    punchIn(p, was ? {customer:was.customer, ticket:was.ticket} : null);
+    S.view = "today"; return;
+  }
+  if(hasParam("stop")){ punchOut(); S.view = "today"; return; }
+  var g = urlParam("go");
+  if(g === "new" || g === "log" || g === "report" || g === "sync") S.view = g;
+}
+
+loadLocal();
+startFromUrl();
+render();
+if(syncReady()) syncNow();
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden){ render(); if(syncReady()) syncNow(); }
+});
+window.addEventListener("online", function(){ if(syncReady()) syncNow(); });
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+})();
+</script>
+</body>
+</html>
